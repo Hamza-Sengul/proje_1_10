@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}SMS Doğrulama{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2>SMS ile Doğrulama</h2>
+  <p>Telefonunuza gönderilen 6 haneli SMS kodunu giriniz.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Doğrula</button>
+  </form>
+</div>
+{% endblock %}

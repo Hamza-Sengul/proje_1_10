@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Admin OTP Doğrulama{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block sidebar %}{% endblock %}
+
+{% block main %}
+<div class="container" style="padding-top: 50px;">
+    <h3>OTP Doğrulama</h3>
+    
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+    
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="otp_code" class="form-label">Telefonunuza gelen 6 haneli kod</label>
+            <input type="text" name="otp_code" id="otp_code" class="form-control" required maxlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary">Doğrula</button>
+    </form>
+</div>
+{% endblock %}
