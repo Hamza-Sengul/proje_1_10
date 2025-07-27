@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}İş Yapılmayan Müşteriler{% endblock %}
+{% block content %}
+<div class="container">
+  <h2>İş Yapılmayan Müşteriler</h2>
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>Kullanıcı Adı</th>
+        <th>Ad</th>
+        <th>Soyad</th>
+        <th>Abonelik Türü</th>
+        <th>Anlaşma Durumu</th>
+        <th>Oluşturulma Tarihi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer in customers %}
+      <tr>
+        <td>{{ customer.username }}</td>
+        <td>{{ customer.first_name }}</td>
+        <td>{{ customer.last_name }}</td>
+        <td>{{ customer.subscription_type.name }}</td>
+        <td>{{ customer.get_agreement_status_display }}</td>
+        <td>{{ customer.created_at|date:"Y-m-d" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6">Hiç müşteri bulunamadı.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

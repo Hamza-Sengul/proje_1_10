@@ -92,6 +92,8 @@ class Customer(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True, null=True)
     agreement_status = models.CharField(max_length=10, choices=AGREEMENT_STATUS_CHOICES)
+    # Yeni: Müşteri ile artık çalışılmadığını işaretlemek için aktiflik alanı
+    is_active = models.BooleanField(default=True, verbose_name="Aktif mi")
     
     created_at = models.DateTimeField(auto_now_add=True)
     
