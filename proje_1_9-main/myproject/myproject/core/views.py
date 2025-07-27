@@ -356,7 +356,7 @@ def list_customers_rep(request):
         return redirect('home')
 
     # Giriş yapan temsilciye ait müşterileri alıyoruz.
-    customers = Customer.objects.filter(rep=request.user).order_by("-created_at")
+    customers = Customer.objects.filter(rep=request.user, is_active=True).order_by("-created_at")
     
     # Filtreleme: müşteri kullanıcı adı, ad, abonelik türü, anlaşma durumu
     username = request.GET.get('username', '')
@@ -387,7 +387,7 @@ def list_customers_rep(request):
 def list_customers_admin(request):
     if not request.user.is_superuser:
         return redirect('home')
-    customers = Customer.objects.all().order_by("-created_at")
+    customers = Customer.objects.filter(is_active=True).order_by("-created_at")
     
     # Filtreleme: temsilci kullanıcı adı, müşteri kullanıcı adı, abonelik türü, anlaşma durumu
     rep_username = request.GET.get('rep_username', '')
@@ -495,7 +495,11 @@ def list_pending_customers(request):
     # Sadece 2. kademe ve üzeri temsilciler (superuser olmayanlar) kendi müşterileri üzerinde işlem yapabilsin.
     if request.user.is_superuser or request.user.level < 2:
         return redirect('home')
-    pending_customers = Customer.objects.filter(rep=request.user, agreement_status='beklemede').order_by("-created_at")
+    pending_customers = Customer.objects.filter(
+        rep=request.user,
+        agreement_status='beklemede',
+        is_active=True,
+    ).order_by("-created_at")
     context = {'pending_customers': pending_customers}
     return render(request, 'list_pending_customers.html', context)
 
@@ -513,6 +517,32 @@ def edit_customer_agreement(request, customer_id):
     else:
         form = CustomerForm(instance=customer)
     return render(request, 'edit_customer_agreement.html', {'form': form, 'customer': customer})
+
+
+@login_required
+def deactivate_customer(request, customer_id):
+    """Müşteriyi pasif hale getirir."""
+    if request.user.is_superuser:
+        customer = get_object_or_404(Customer, id=customer_id)
+    else:
+        if request.user.level < 2:
+            return redirect('home')
+        customer = get_object_or_404(Customer, id=customer_id, rep=request.user)
+
+    customer.is_active = False
+    customer.save()
+
+    if request.user.is_superuser:
+        return redirect('list_customers_admin')
+    return redirect('list_customers_rep')
+
+
+@login_required
+def list_inactive_customers_rep(request):
+    if request.user.is_superuser or request.user.level < 2:
+        return redirect('home')
+    customers = Customer.objects.filter(rep=request.user, is_active=False).order_by('-created_at')
+    return render(request, 'list_inactive_customers_rep.html', {'customers': customers})
 
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -874,6 +904,7 @@ def add_material_transaction(request):
 
     if request.method == "POST":
         form = InlineMaterialTransactionForm(request.POST)
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
         if form.is_valid():
             transaction = form.save(commit=False)
             transaction.rep = request.user
@@ -881,6 +912,7 @@ def add_material_transaction(request):
             return redirect('list_material_transactions_for_rep')
     else:
         form = InlineMaterialTransactionForm()
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
     
     return render(request, "add_material_transaction.html", {"form": form})
 
@@ -891,7 +923,7 @@ def list_material_transactions_admin(request):
     if not request.user.is_superuser:
         return redirect('home')
     
-    transactions = MaterialTransaction.objects.all().order_by("-transaction_date")
+    transactions = MaterialTransaction.objects.filter(customer__is_active=True).order_by("-transaction_date")
     return render(request, "list_material_transactions_admin.html", {"transactions": transactions})
 
 
@@ -901,7 +933,7 @@ def list_material_transactions_for_rep(request):
     if request.user.is_superuser or request.user.level < 2:
         return redirect('home')
     
-    transactions = MaterialTransaction.objects.filter(rep=request.user).order_by("-transaction_date")
+    transactions = MaterialTransaction.objects.filter(rep=request.user, customer__is_active=True).order_by("-transaction_date")
     return render(request, "list_material_transactions_for_rep.html", {"transactions": transactions})
 
 
@@ -1064,15 +1096,17 @@ def add_payment(request):
     # ...
     if request.method == 'POST':
         form = InlinePaymentForm(request.POST)
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
         if form.is_valid():
             payment = form.save(commit=False)
             payment.save()
             return redirect('list_payments_rep')
     else:
         form = InlinePaymentForm()
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
 
     # Tüm müşterileri alalım (temsilcinin):
-    customers = Customer.objects.filter(rep=request.user)
+    customers = Customer.objects.filter(rep=request.user, is_active=True)
     return render(request, "add_payment.html", {
         "form": form,
         "customers": customers
@@ -1085,7 +1119,7 @@ def list_payments_rep(request):
     if request.user.is_superuser or (request.user.level and request.user.level < 2):
         return redirect('home')
 
-    customers = Customer.objects.filter(rep=request.user)
+    customers = Customer.objects.filter(rep=request.user, is_active=True)
 
     # Filtre parametreleri
     q_username = request.GET.get('q_username', '').strip()
@@ -1156,7 +1190,7 @@ def list_payments_admin(request):
     if not request.user.is_superuser:
         return redirect('home')
 
-    customers = Customer.objects.all()
+    customers = Customer.objects.filter(is_active=True)
 
     # Filtre parametreleri
     # 1) Müşteri arama (username, first_name, last_name)
@@ -1289,6 +1323,7 @@ def add_complaint(request):
 
     if request.method == 'POST':
         form = InlineComplaintForm(request.POST)
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
         if form.is_valid():
             complaint = form.save(commit=False)
             complaint.rep = request.user
@@ -1297,6 +1332,7 @@ def add_complaint(request):
             return redirect('list_complaints_rep' if not request.user.is_superuser else 'list_complaints_admin')
     else:
         form = InlineComplaintForm()
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
     
     # Müşteri seçimi form.customer.queryset => temsilcinin müşterileri? opsiyona göre
     return render(request, "add_complaint.html", {"form": form})
@@ -1314,7 +1350,7 @@ def list_complaints_rep(request):
     date_to = request.GET.get('date_to', '')
     q_title = request.GET.get('title', '')
 
-    complaints = Complaint.objects.filter(rep=request.user).order_by("-created_at")
+    complaints = Complaint.objects.filter(rep=request.user, customer__is_active=True).order_by("-created_at")
     if q_status:
         complaints = complaints.filter(status=q_status)
     if q_title:
@@ -1337,7 +1373,7 @@ def list_complaints_admin(request):
     q_title = request.GET.get('title', '')
     q_rep = request.GET.get('rep', '')
 
-    complaints = Complaint.objects.all().order_by("-created_at")
+    complaints = Complaint.objects.filter(customer__is_active=True).order_by("-created_at")
     if q_status:
         complaints = complaints.filter(status=q_status)
     if q_title:
@@ -1382,6 +1418,7 @@ def add_request(request):
 
     if request.method == 'POST':
         form = InlineRequestForm(request.POST)
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
         if form.is_valid():
             req = form.save(commit=False)
             req.rep = request.user
@@ -1389,6 +1426,7 @@ def add_request(request):
             return redirect('list_requests_rep' if not request.user.is_superuser else 'list_requests_admin')
     else:
         form = InlineRequestForm()
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
     return render(request, "add_request.html", {"form": form})
 
 
@@ -1401,7 +1439,7 @@ def list_requests_rep(request):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
-    reqs = Request.objects.filter(rep=request.user).order_by("-created_at")
+    reqs = Request.objects.filter(rep=request.user, customer__is_active=True).order_by("-created_at")
     if q_name:
         reqs = reqs.filter(name__icontains=q_name)
     if date_from:
@@ -1422,7 +1460,7 @@ def list_requests_admin(request):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
-    reqs = Request.objects.all().order_by("-created_at")
+    reqs = Request.objects.filter(customer__is_active=True).order_by("-created_at")
     if q_name:
         reqs = reqs.filter(name__icontains=q_name)
     if q_rep:
@@ -1552,6 +1590,7 @@ def add_subscription_extra(request):
 
     if request.method == 'POST':
         form = InlineSubscriptionExtraForm(request.POST)
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
         if form.is_valid():
             extra = form.save(commit=False)
             extra.rep = request.user
@@ -1581,6 +1620,7 @@ def add_subscription_extra(request):
                 return redirect('list_subscription_extras_rep')
     else:
         form = InlineSubscriptionExtraForm()
+        form.fields['customer'].queryset = Customer.objects.filter(rep=request.user, is_active=True)
     
     return render(request, "add_subscription_extra.html", {"form": form})
 
@@ -1590,7 +1630,7 @@ def list_subscription_extras_rep(request):
     if request.user.is_superuser or (request.user.level and request.user.level < 2):
         return redirect('home')
 
-    extras = SubscriptionExtra.objects.filter(rep=request.user).order_by("-created_at")
+    extras = SubscriptionExtra.objects.filter(rep=request.user, customer__is_active=True).order_by("-created_at")
 
     # Filtre parametreleri
     q_name = request.GET.get('name', '').strip()
@@ -1618,7 +1658,7 @@ def list_subscription_extras_admin(request):
     if not request.user.is_superuser:
         return redirect('home')
 
-    extras = SubscriptionExtra.objects.all().order_by("-created_at")
+    extras = SubscriptionExtra.objects.filter(customer__is_active=True).order_by("-created_at")
 
     q_name = request.GET.get('name', '').strip()
     q_customer = request.GET.get('customer', '').strip()
